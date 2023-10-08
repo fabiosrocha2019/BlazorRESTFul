@@ -1,0 +1,172 @@
+﻿@page "/telaAluno"
+@using BlazorRESTFul.Models;
+@using System.Net.Http.Formatting;
+@using Newtonsoft.Json;
+
+<h3 class="text-danger">Tela de Aluno</h3>
+
+<div id="senhaForteMessage" class="text-danger" style="display: @(exibirMensagemSenhaFraca ? "block" : "none")">
+    Senha fraca! Sua senha deve conter pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais.
+</div>
+
+<div class="container mt-4 bg-dark text-light p-4">
+    <EditForm Model="@aluno" OnValidSubmit="@OnValidSubmit">
+        <DataAnnotationsValidator />
+        <div class="form-group">
+            <label for="Id">Id</label>
+            <InputNumber id="Id" @bind-Value="@aluno.Id" disabled class="form-control"></InputNumber>
+        </div>
+
+        <div class="form-group">
+            <label for="Nome">Nome</label>
+            <InputText id="Nome" @bind-Value="@aluno.Nome" class="form-control"></InputText>
+            <ValidationMessage For="@(() => aluno.Nome)" />
+        </div>
+
+        <div class="form-group">
+            <label for="Usuario">Usuário</label>
+            <InputText id="Usuario" @bind-Value="@aluno.Usuario" class="form-control"></InputText>
+            <ValidationMessage For="@(() => aluno.Usuario)" />
+        </div>
+
+        <div class="form-group">
+            <label for="Senha">Senha</label>
+            @if (aluno.Id == 0 || mostrarCampoSenha)
+            {
+                <InputText id="Senha" @bind-Value="@aluno.Senha" class="form-control"></InputText>
+                <ValidationMessage For="@(() => aluno.Senha)" />
+            }
+            <p class="text-danger" id="senhaForteMessage" style="display:none;">A senha deve conter pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais.</p>
+        </div>
+
+        <button type="submit" class="btn btn-dark mt-3">@(aluno.Id == 0 ? "Cadastrar" : "Atualizar")</button>
+
+    </EditForm>
+
+    @if (alunos != null && alunos.Any())
+    {
+        <h4 class="mt-4">Lista de Alunos</h4>
+        <table class="table table-bordered" style="background-color: #fff;">
+            <thead class="bg-danger text-light">
+                <tr>
+                    <th>Nome</th>
+                    <th>Usuário</th>
+                    <th>Ações</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in alunos)
+                {
+                    <tr>
+                        <td>@item.Nome</td>
+                        <td>@item.Usuario</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => InativarAluno(item.Id)">Inativar</button>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" @onclick="() => PreencherTela(item.Id)">Editar Aluno</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Nenhum aluno encontrado.</p>
+    }
+</div>
+
+@code {
+    List<Aluno> alunos;
+    Aluno aluno = new Aluno();
+    private bool exibirMensagemSenhaFraca = false;
+    private bool mostrarCampoSenha = true;
+
+    [Inject]
+    private IHttpClientFactory _clientFactory { get; set; }
+
+    private HttpClient _client;
+
+    protected override void OnInitialized()
+    {
+        _client = _clientFactory.CreateClient("API");
+        alunos = BuscarTodosAlunos();
+    }
+
+    private List<Aluno> BuscarTodosAlunos()
+    {
+        var response = _client.GetAsync("https://localhost:44350/api/Aluno").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            return response.Content.ReadAsAsync<List<Aluno>>().Result;
+        }
+        return new List<Aluno>();
+    }
+
+    private void OnValidSubmit()
+    {
+        if (IsSenhaForte(aluno.Senha))
+        {
+
+            if (aluno.Id == 0)
+            {
+
+                var response = _client.PostAsJsonAsync("https://localhost:44350/api/Aluno", aluno).Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    aluno = new Aluno(); 
+                    alunos = BuscarTodosAlunos(); 
+                }
+
+            }
+            else
+
+            {
+                mostrarCampoSenha = false;
+                var response = _client.PutAsJsonAsync($"https://localhost:44350/api/Aluno/{aluno.Id}", aluno).Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    aluno = new Aluno(); 
+                    alunos = BuscarTodosAlunos(); 
+                }
+            }
+        }
+        else
+        {
+            exibirMensagemSenhaFraca = true;
+
+        }
+    }
+
+    private void InativarAluno(int alunoId)
+    {
+        var response = _client.DeleteAsync($"https://localhost:44350/api/Aluno/{alunoId}").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            alunos = BuscarTodosAlunos(); 
+        }
+    }
+
+    private void PreencherTela(int alunoId)
+    {
+        var response = _client.GetAsync($"https://localhost:44350/api/Aluno/{alunoId}").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            aluno = response.Content.ReadAsAsync<Aluno>().Result;
+        }
+    }
+
+    private bool IsSenhaForte(string senha)
+    {
+        
+        if (senha.Length < 8) return false;
+        if (!senha.Any(char.IsUpper)) return false;
+        if (!senha.Any(char.IsLower)) return false;
+        if (!senha.Any(char.IsDigit)) return false;
+        if (!senha.Any(ch => !char.IsLetterOrDigit(ch))) return false;
+
+        return true;
+    }
+}

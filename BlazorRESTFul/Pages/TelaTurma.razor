@@ -1,0 +1,131 @@
+﻿@page "/telaTurma"
+@using BlazorRESTFul.Models;
+
+<h3 class="text-danger">Tela de Turma</h3>
+
+<div class="container mt-4 bg-dark text-light p-4">
+    <EditForm Model="@turma" OnValidSubmit="@OnValidSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="CursoId">CursoId</label>
+            <InputNumber id="CursoId" @bind-Value="@turma.CursoId" class="form-control"></InputNumber>
+        </div>
+
+        <div class="form-group">
+            <label for="Turma">Turma</label>
+            <InputText id="Turma" @bind-Value="@turma.turma" class="form-control"></InputText>
+            <ValidationMessage For="@(() => turma.turma)" />
+        </div>
+
+        <div class="form-group">
+            <label for="Ano">Ano</label>
+            <InputNumber id="Ano" @bind-Value="@turma.Ano" class="form-control"></InputNumber>
+            <ValidationMessage For="@(() => turma.Ano)" />
+        </div>
+
+        <button class="btn btn-dark">@(turma.Id == 0 ? "Cadastrar" : "Atualizar")</button>
+    </EditForm>
+
+    @if (turmas != null && turmas.Any())
+    {
+        <h4 class="mt-4">Lista de Turmas</h4>
+        <table class="table table-bordered" style="background-color: #fff;">
+            <thead class="bg-danger text-light">
+                <tr>
+                    <th>Id Turma</th>
+                    <th>Turma</th>
+                    <th>Ano</th>
+                    <th>Ação</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in turmas)
+                {
+                    <tr>
+                        <td>@item.Id</td>
+                        <td>@item.turma</td>
+                        <td>@item.Ano</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => InativarTurma(item.Id)">Inativar</button>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" @onclick="() => PreencherTela(item.Id)">Editar turma</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p class="text-danger">Nenhuma turma encontrada.</p>
+    }
+</div>
+
+@code {
+    List<Turma> turmas;
+    Turma turma = new Turma();
+
+    [Inject]
+    private IHttpClientFactory _clientFactory { get; set; }
+
+    private HttpClient _client;
+
+    protected override void OnInitialized()
+    {
+        _client = _clientFactory.CreateClient();
+        turmas = BuscarTodasTurmas();
+    }
+
+    private List<Turma> BuscarTodasTurmas()
+    {
+        var response = _client.GetAsync("https://localhost:44350/api/Turma").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            return response.Content.ReadAsAsync<List<Turma>>().Result;
+        }
+        return new List<Turma>();
+    }
+
+    private void OnValidSubmit()
+    {
+        if (turma.Id == 0)
+        {
+            var response = _client.PostAsJsonAsync("https://localhost:44350/api/Turma", turma).Result;
+            if (response.IsSuccessStatusCode)
+            {
+                turma = new Turma(); 
+                turmas = BuscarTodasTurmas(); 
+            }
+        }
+        else
+        {
+            var response = _client.PutAsJsonAsync($"https://localhost:44350/api/Turma/{turma.Id}", turma).Result;
+            if (response.IsSuccessStatusCode)
+            {
+                turma = new Turma(); 
+                turmas = BuscarTodasTurmas(); 
+            }
+        }
+    }
+
+    private void InativarTurma(int turmaId)
+    {
+        var response = _client.DeleteAsync($"https://localhost:44350/api/Turma/{turmaId}").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            turmas = BuscarTodasTurmas(); 
+        }
+    }
+
+    private void PreencherTela(int turmaId)
+    {
+        var response = _client.GetAsync($"https://localhost:44350/api/Turma/{turmaId}").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            turma = response.Content.ReadAsAsync<Turma>().Result;
+        }
+    }
+}

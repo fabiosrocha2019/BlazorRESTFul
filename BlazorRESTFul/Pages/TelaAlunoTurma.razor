@@ -1,0 +1,205 @@
+﻿@page "/telaAlunoTurma"
+@using BlazorRESTFul.Models;
+@using System.Net.Http.Formatting;
+@using Newtonsoft.Json;
+
+
+<h3 class="text-danger">Tela de Matrícula de Alunos em Turmas</h3>
+
+<div class="container mt-4 bg-dark text-light p-4">
+    <div class="row">
+        <div class="col-md-6">
+            <h4>Alunos</h4>
+            <div class="form-group">
+                <label for="alunoSelect">Selecione um Aluno</label>
+                <select class="form-control" id="alunoSelect" @onchange="AlunoSelecionado">
+                    <option value="-1">Selecione</option>
+                    @foreach (var aluno in alunos)
+                    {
+                        <option value="@aluno.Id">@aluno.Nome</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <h4>Turmas</h4>
+            <div class="form-group">
+                <label for="turmaSelect">Selecione uma Turma</label>
+                <select class="form-control" id="turmaSelect" @onchange="TurmaSelecionada">
+                    <option value="-1">Selecione</option>
+                    @foreach (var turma in turmas)
+                    {
+                        <option value="@turma.Id">@turma.turma</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+<button class="btn btn-primary col-md-2" @onclick="MatricularAlunoTurma" disabled="@(!IsSelecaoValida)">Matricular</button>
+
+@*<div class="container">*@
+    @if (turmasDoAluno != null && turmasDoAluno.Any())
+    {
+        <h4 class="mt-4">Turmas do Aluno</h4>
+        <table class="table table-bordered" style="background-color: #fff;">
+            <thead class="bg-danger text-light">
+                <tr>
+                    <th>Turma</th>
+                    <th>Ano</th>
+                    <th>Código Curso</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var turma in turmasDoAluno)
+                {
+                    <tr>
+                        <td>@turma.turma</td>
+                        <td>@turma.Ano</td>
+                        <td>@turma.Id</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => DesmatricularAlunoTurma(turma.Id)">Desmatricular</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Nenhuma turma encontrada para este aluno.</p>
+    }
+@*</div>*@
+</div>
+
+
+
+@code {
+    List<Aluno> alunos;
+    List<Turma> turmas;
+    List<Turma> turmasDoAluno;
+    private HttpClient _client;
+    private int selectedAlunoId = -1;
+    private int selectedTurmaId = -1;
+
+    protected override void OnInitialized()
+    {
+        _client = new HttpClient();
+        _client.BaseAddress = new Uri("https://localhost:44350/");
+        alunos = BuscarTodosAlunos();
+        turmas = BuscarTodasTurmas();
+    }
+
+    private List<Aluno> BuscarTodosAlunos()
+    {
+        var response = _client.GetAsync("api/Aluno").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            return response.Content.ReadAsAsync<List<Aluno>>().Result;
+        }
+        return new List<Aluno>();
+    }
+
+    private List<Turma> BuscarTodasTurmas()
+    {
+        var response = _client.GetAsync("api/Turma").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            return response.Content.ReadAsAsync<List<Turma>>().Result;
+        }
+        return new List<Turma>();
+    }
+
+    private void AlunoSelecionado(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value.ToString(), out int alunoId))
+        {
+            selectedAlunoId = alunoId;
+            if (selectedAlunoId > -1)
+            {
+                turmasDoAluno = BuscarTurmasDoAluno(selectedAlunoId);
+            }
+        }
+        else
+        {
+            selectedAlunoId = -1;
+        }
+
+        VerificarSelecao();
+    }
+
+    private void TurmaSelecionada(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value.ToString(), out int turmaId))
+        {
+            selectedTurmaId = turmaId;
+        }
+        else
+        {
+            selectedTurmaId = -1;
+        }
+
+        VerificarSelecao();
+    }
+
+    private bool IsSelecaoValida => selectedAlunoId != -1 && selectedTurmaId != -1;
+
+    private void VerificarSelecao()
+    {
+        StateHasChanged();
+    }
+
+    private void MatricularAlunoTurma()
+    {
+        if (IsSelecaoValida)
+        {
+            try
+            {
+                var response = _client.PostAsync($"api/AlunoTurma/MatricularAluno?alunoId={selectedAlunoId}&turmaId={selectedTurmaId}", null).Result;
+
+                if (response.IsSuccessStatusCode)
+                {
+                    turmasDoAluno = BuscarTurmasDoAluno(selectedAlunoId);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+    }
+
+    private List<Turma> BuscarTurmasDoAluno(int alunoId)
+    {
+        var response = _client.GetAsync($"api/AlunoTurma/TurmasDeAluno?alunoId={alunoId}").Result;
+        if (response.IsSuccessStatusCode)
+        {
+            return response.Content.ReadAsAsync<List<Turma>>().Result;
+        }
+        return new List<Turma>();
+    }
+
+    private void DesmatricularAlunoTurma(int turmaId)
+    {
+        if (turmaId > 0)
+        {
+            try
+            {
+                var response = _client.DeleteAsync($"api/AlunoTurma/RetirarAluno?alunoId={selectedAlunoId}&turmaId={turmaId}").Result;
+
+                if (response.IsSuccessStatusCode)
+                {
+                    
+                    turmasDoAluno = BuscarTurmasDoAluno(selectedAlunoId);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+
+            }
+        }
+    }
+}
